@@ -1,0 +1,134 @@
+---
+title: "Final Project 2131"
+author: "Nathan Matten"
+date: "12/6/2021"
+output: pdf_document
+---
+
+```{r tidy=TRUE}
+library(nlme)
+library(orcutt)
+library(DescTools)
+set.seed(1122214)
+xt<-rep(NA,50)
+xt[1]<-0
+for(t in 1:length(xt)){
+  if(t==1){xt[t]<-0; next};
+  xt[t] <- xt[t-1] + 0.2
+}
+eps<-rep(NA, 50)
+rho = 0.5
+beta0 = 2
+beta1 = .5
+c <- matrix(nrow=500,ncol=2)
+b <- matrix(nrow=500,ncol=2)
+a <- matrix(nrow=500,ncol=1)
+z <- matrix(nrow=500,ncol=1)
+resi<-matrix(nrow=500,ncol=50)
+dw<-matrix(nrow=500,ncol=4)
+rho.hat.mle<-matrix(nrow=500,ncol=1)
+rho.hat.reml<-matrix(nrow=500,ncol=1)
+rhoyw<-matrix(nrow=500)
+segmle<-matrix(nrow=500)
+betagmle<-matrix(nrow=500)
+sereml<-matrix(nrow=500)
+betareml<-matrix(nrow=500)
+secoch<-matrix(nrow=500)
+betacoch<-matrix(nrow=500)
+gmleci<-matrix(nrow=500,ncol=2)
+remlci<-matrix(nrow=500,ncol=2)
+cochci<-matrix(nrow=500,ncol=2)
+counter = 0
+counter2 = 0
+countergmle = 0
+counterreml = 0
+countercoch = 0
+for (i in 1:500){
+  for (t in 1:length(eps)){
+  if (t==1){eps[t]<-rnorm(1)*sqrt(1/(1-rho^2)); next};
+  eps[t] <- rnorm(1) + rho*eps[t-1]
+  }
+  y0 = beta0 + beta1*xt + eps
+  fit1<-lm(y0 ~ xt)
+  conf<-confint(fit1)
+  c[i, 1:2]<-conf[2,1:2]
+  b[i, 1:2]<-fit1$coefficients
+  resi[i,]<-fit1$residuals
+  #(c2/3)
+  gmle <-gls(y0 ~ xt, correlation = corAR1(form = ~1), method="ML")
+  a[i] <- as.numeric(gmle$modelStruct)
+  rho.hat.mle[i] = (exp(a[i])-1)/(exp(a[i])+1)
+  reml <-gls(y0 ~ xt, correlation = corAR1(form = ~1), method = "REML")
+  z[i] <- as.numeric(reml$modelStruct)
+  rho.hat.reml[i] = (exp(z[i])-1)/(exp(z[i])+1)
+  coch<-cochrane.orcutt(fit1)
+  rhoyw[i]<-coch$rho
+   dwtemp<-DurbinWatsonTest(fit1, alternative=c("two.sided"))
+  dw[i,1]<- dwtemp$statistic  
+  dw[i,2]<- dwtemp$method
+  dw[i,3]<- dwtemp$alternative
+  dw[i,4]<- dwtemp$p.value
+  #Part (d)
+  segmle[i]<- sqrt(gmle$varBeta[2,2])
+  betagmle[i]<- gmle$coefficients[2]
+  sereml[i]<- sqrt(reml$varBeta[2,2])
+  betareml[i]<- reml$coefficients[2]
+  secoch[i]<- coch$std.error[2]
+  betacoch[i]<- coch$coefficients[2]
+  gmleci[i,1]<- betagmle[i]-(1.96*segmle[i])
+  gmleci[i,2]<- betagmle[i]+(1.96*segmle[i])
+  remlci[i,1]<- betareml[i]-(1.96*sereml[i])
+  remlci[i,2]<- betareml[i]+(1.96*sereml[i])
+  cochci[i,1]<- betacoch[i]-(1.96*secoch[i])
+  cochci[i,2]<- betacoch[i]+(1.96*secoch[i])
+   }
+for(i in 1:500){
+ if (c[i,1]<0.5 && c[i,2]>0.5){
+   counter = counter+1
+  }
+  if (dw[i,1] < 1.50){
+  counter2 = counter2+1
+  } 
+  if (gmleci[i,1]<0.5 && gmleci[i,2]>0.5){
+   countergmle = countergmle+1
+  }
+  if (remlci[i,1]<0.5 && remlci[i,2]>0.5){
+   counterreml = counterreml+1
+  }
+  if (cochci[i,1]<0.5 && cochci[i,2]>0.5){
+   countercoch = countercoch+1
+ }
+}
+plot(xt,resi[39,], main="Simulation 39, Correlation Check", xlab="X(t)", ylab="Estimated Residuals")
+abline(h=0, col="red")
+plot(xt,resi[48,], main="Simulation 48, Correlation Check", xlab="X(t)", ylab="Estimated Residuals")
+abline(h=0, col="red")
+plot(xt,resi[262,], main="Simulation 262, Correlation Check", xlab="X(t)", ylab="Estimated Residuals")
+abline(h=0, col="red")
+betahat0<-mean(b[1:500,1])
+betahat1<-mean(b[1:500,2])
+rhohatmle<-mean(rho.hat.mle[1:500])
+rhohatreml<-mean(rho.hat.reml[1:500])
+rhohatyw<-mean(rhoyw[1:500])
+print(counter)
+print(counter2)
+print(countergmle)
+print(rhohatmle)
+print(counterreml)
+print(rhohatreml)
+print(countercoch)
+print(rhohatyw)
+```
+
+```{r}
+table1<-cbind(b,c,dw)
+colnames(table1)<- c('Beta_0','Beta_1','Lower Bound Beta 1','Upper Bound Beta 1','DW Test Statistic','Test Type','Alternate Hypothesis', 'DW P-Value')
+table_rho<-cbind(rho.hat.mle,rho.hat.reml,rhoyw)
+colnames(table_rho)<-c('Rho_Hat_MLE','Rho_Hat_REML','Rho_Hat_YW')
+table_ac_adj<-cbind(betagmle,gmleci,betareml,remlci,betacoch,cochci)
+colnames(table_ac_adj)<-c('GMLE B_1 Hat','GMLE B_1 Lower Bound','GMLE B_1 Upper Bound','REML B_1 Hat','REML B_1 Lower Bound','REML B_1 Upper Bound','YW B_1 Hat','YW B_1 Lower Bound','YW B_1 Upper Bound')
+
+write.table(table1,"~/Downloads/table1.txt",sep = "\t")
+write.table(table_rho,"~/Downloads/rho.txt", sep = "\t")
+write.table(table_ac_adj, "~/Downloads/AC_adjust.txt", sep="\t")
+```
